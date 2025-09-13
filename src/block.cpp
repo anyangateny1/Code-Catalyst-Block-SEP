@@ -7,26 +7,30 @@ Block::Block(int x_, int y_, int z_,
              int x_off, int y_off, int z_off)
     : x(x_), y(y_), z(z_),
       x_offset(x_off), y_offset(y_off), z_offset(z_off),
-      width(w_), height(h_), depth(d_),
-      x_end(x_ + w_), y_end(y_ + h_), z_end(z_ + d_),
-      tag(tag_), volume(w_ * h_ * d_) {}
+      width(w_), height(h_), depth(d_), tag(tag_) {  
+      update_derived_values();
+    }
 
 void Block::set_width(int w) {
     width = w;
-    x_end = x + w;
-    volume = width * height * depth;
+    update_derived_values();
 }
 
 void Block::set_height(int h) {
     height = h;
-    y_end = y + h;
-    volume = width * height * depth;
+    update_derived_values();
 }
 
 void Block::set_depth(int d) {
     depth = d;
-    z_end = z + d;
+    update_derived_values();
+}
+// separated it from the constructor block it was handling to many processes.
+void Block::update_derived_values() {
     volume = width * height * depth;
+    x_end = x + width;
+    y_end = y + height;
+    z_end = z + depth;
 }
 
 void Block::print_block(const std::string& label) const {

@@ -43,6 +43,10 @@ public:
     //   x,y,z,width,height,depth,label
     // (label is looked up by BlockGrowth and passed in here)
     void print_block(const std::string& label) const;
+
+    private:
+    // Helper to update volume and end coordinates
+    void update_derived_values();
 };
 
 #endif // BLOCK_H
