@@ -17,7 +17,7 @@ void BlockGrowth::run(Block parent_block_) {
     parent_block = parent_block_;
 
     // Initialize compressed mask - use bool for better cache efficiency
-    compressed = Flat3D<bool>(parent_block.depth, parent_block.height, parent_block.width, false);
+    compressed = Flat3D<unsigned char>(parent_block.depth, parent_block.height, parent_block.width, 0);
  
     // Process all uncompressed voxels using flood fill
     for (int z = 0; z < parent_block.depth; ++z) {
@@ -41,7 +41,7 @@ Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
     stack.push({start_x, start_y, start_z});
     
     // Temporary visited array to avoid double-processing during flood fill
-    Flat3D<bool> visited(parent_block.depth, parent_block.height, parent_block.width, false);
+    Flat3D<unsigned char> visited(parent_block.depth, parent_block.height, parent_block.width, 0);
     
     while (!stack.empty()) {
         auto [x, y, z] = stack.top();
@@ -53,7 +53,7 @@ Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
             continue;
         }
         
-        visited.at(z, y, x) = true;
+        visited.at(z, y, x) = 1;
         connected_voxels.push_back({x, y, z});
         
         // Add 6-connected neighbors to stack
@@ -72,7 +72,7 @@ Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
     for (int z = result.z_offset; z < result.z_offset + result.depth; ++z) {
         for (int y = result.y_offset; y < result.y_offset + result.height; ++y) {
             for (int x = result.x_offset; x < result.x_offset + result.width; ++x) {
-                compressed.at(z, y, x) = true;
+                compressed.at(z, y, x) = 1;
             }
         }
     }

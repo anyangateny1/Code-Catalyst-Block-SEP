@@ -43,8 +43,7 @@ private:
     Block parent_block{0, 0, 0, 0, 0, 0, '\0'};
     
     // Use bool for better memory efficiency and cache performance
-    Flat3D<bool> compressed;
-
+    Flat3D<unsigned char> compressed;
     // Core flood-fill algorithm
     Block flood_fill_block(int start_x, int start_y, int start_z);
     

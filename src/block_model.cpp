@@ -1,4 +1,3 @@
-
 #include "block_model.h"
 #include <algorithm>
 #include <cctype>
@@ -11,7 +10,13 @@ using std::unordered_map;
 using std::vector;
 
 BlockModel::BlockModel() {
+    // Auto-detect optimal thread count, but cap at 8 for diminishing returns
+    num_threads = std::min(std::thread::hardware_concurrency(), 8u);
+    if (num_threads == 0) num_threads = 1; // Fallback for systems that don't report
+}
 
+void BlockModel::set_num_threads(unsigned int threads) {
+    num_threads = std::max(1u, threads); // Ensure at least 1 thread
 }
 
 void BlockModel::read_specification() {
