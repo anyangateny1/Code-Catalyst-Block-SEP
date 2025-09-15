@@ -15,10 +15,10 @@ BlockGrowth::BlockGrowth(const Flat3D<char>& model_slices,
 
 void BlockGrowth::run(Block parent_block_) {
     parent_block = parent_block_;
-
+    
     // Initialize compressed mask - use bool for better cache efficiency
     compressed = Flat3D<bool>(parent_block.depth, parent_block.height, parent_block.width, false);
- 
+    
     // Process all uncompressed voxels using flood fill
     for (int z = 0; z < parent_block.depth; ++z) {
         for (int y = 0; y < parent_block.height; ++y) {
@@ -64,7 +64,7 @@ Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
         stack.push({x, y, z + 1});
         stack.push({x, y, z - 1});
     }
-
+    
     // Create the best rectangular block from connected voxels
     Block result = create_rectangular_block(connected_voxels, target_tag);
     
@@ -80,7 +80,8 @@ Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
     return result;
 }
 
-Block BlockGrowth::create_rectangular_block(const vector<tuple<int, int, int>>& voxels, char target_tag) {
+Block BlockGrowth::create_rectangular_block(const vector<tuple<int, int, int>>& voxels, 
+                                            char target_tag) {
     if (voxels.empty()) {
         throw std::runtime_error("Cannot create block from empty voxel set");
     }
@@ -102,7 +103,8 @@ Block BlockGrowth::create_rectangular_block(const vector<tuple<int, int, int>>& 
     int width = max_x - min_x + 1;
     int height = max_y - min_y + 1;
     int depth = max_z - min_z + 1;
-// Check if the bounding box is completely filled with target material
+    
+    // Check if the bounding box is completely filled with target material
     bool is_solid_box = true;
     for (int z = min_z; z <= max_z && is_solid_box; ++z) {
         for (int y = min_y; y <= max_y && is_solid_box; ++y) {
@@ -178,5 +180,4 @@ void BlockGrowth::print_block(const Block& block) {
     auto it = tag_table.find(block.tag);
     const string& label = (it == tag_table.end()) ? string(1, block.tag) : it->second;
     block.print_block(label);
-
 }
