@@ -5,8 +5,6 @@
 #include <unordered_map>
 #include <thread>
 #include <vector>
-#include <future>
-#include <mutex>
 #include "block.h"
 #include "block_growth.h"
 
@@ -18,7 +16,6 @@ public:
     void read_specification(); // reads: x_count, y_count, z_count, parent_x, parent_y, parent_z
     void read_tag_table();     // reads "tag, label" lines until an empty line
     void read_model();         // reads z_count slices, each: y_count rows of x_count chars (then blank line)
-    void set_num_threads(unsigned int threads); // Set number of threads to use
 
 private:
     int x_count = 0, y_count = 0, z_count = 0;
@@ -43,9 +40,6 @@ private:
                                     int depth, int y0, int y1, int x0, int x1);
 
     void compress_slices(int top_slice, int n_slices);
-    void process_parent_block(int x, int y, int z, int width, int height, int depth, char tag, int n_slices);
-    std::string process_parent_block_to_string(int x, int y, int z, int width, int height, int depth, char tag, int n_slices);
-    std::string process_parent_block_to_string_safe(const Flat3D<char>& model_slices, const Block& parentBlock);
 };
 
 #endif // BLOCK_MODEL_H
