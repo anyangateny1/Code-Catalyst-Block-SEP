@@ -31,6 +31,8 @@ public:
 class BlockGrowth {
 public:
     BlockGrowth(const Flat3D<char>& model_slices, const std::unordered_map<char, std::string>& tag_table);
+    ~BlockGrowth();
+
 
     void run(Block parent_block);
 
@@ -43,7 +45,7 @@ private:
 
     // Tracks which cells in 'model' have been compressed (0 = false, 1 = true)
     Flat3D<char> compressed;
-    Bitmask3D* mode_mask;
+    Bitmask3D* mode_mask = nullptr;  // <-- default-init for safety
 
     bool all_compressed() const;
     char get_mode_of_uncompressed(const Block& blk) const;

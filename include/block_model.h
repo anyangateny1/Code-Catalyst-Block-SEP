@@ -1,12 +1,12 @@
 #ifndef BLOCK_MODEL_H
 #define BLOCK_MODEL_H
 
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <thread>
 #include <vector>
 #include <future>
-#include <mutex>
 #include "block.h"
 #include "block_growth.h"
 
