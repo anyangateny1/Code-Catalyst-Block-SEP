@@ -2,6 +2,7 @@
 #define BLOCK_GROWTH_H
 
 #include "block.h"
+#include "bitmask3d.h"
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -42,6 +43,7 @@ private:
 
     // Tracks which cells in 'model' have been compressed (0 = false, 1 = true)
     Flat3D<char> compressed;
+    Bitmask3D* mode_mask;
 
     bool all_compressed() const;
     char get_mode_of_uncompressed(const Block& blk) const;

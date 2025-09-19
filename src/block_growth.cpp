@@ -1,4 +1,5 @@
 #include "block_growth.h"
+#include "bitmask3d.h"
 #include <stdexcept>
 #include <algorithm>
 
@@ -7,7 +8,11 @@ using std::unordered_map;
 
 BlockGrowth::BlockGrowth(const Flat3D<char>& model_slices,
                          const unordered_map<char, string>& tag_table)
-    : model(model_slices), tag_table(tag_table) {}
+    : model(model_slices), tag_table(tag_table), mode_mask(nullptr) {}
+
+BlockGrowth::~BlockGrowth() {
+    if (mode_mask) delete mode_mask;
+}
 
 void BlockGrowth::run(Block parent_block_) {
     parent_block = parent_block_;
@@ -23,6 +28,15 @@ void BlockGrowth::run(Block parent_block_) {
 
     while (!all_compressed()) {
         char mode = get_mode_of_uncompressed(parent_block);
+
+        // --- Allocate and build bitmask for current mode and uncompressed voxels ---
+        if (mode_mask) delete mode_mask;
+        mode_mask = new Bitmask3D(parent_block.depth, parent_block.height, parent_block.width);
+        for (int z = 0; z < parent_block.depth; ++z)
+            for (int y = 0; y < parent_block.height; ++y)
+                for (int x = 0; x < parent_block.width; ++x)
+                    mode_mask->set(z, y, x, model.at(z, y, x) == mode && compressed.at(z, y, x) == 0);
+
         int cube_size = std::min({parent_block.width, parent_block.height, parent_block.depth});
         Block b = fit_block(mode, cube_size, cube_size, cube_size);
 
@@ -102,7 +116,7 @@ bool BlockGrowth::window_is_all(char val,
     for (int z = z0; z < z1; ++z)
         for (int y = y0; y < y1; ++y)
             for (int x = x0; x < x1; ++x)
-                if (model.at(z, y, x) != val) return false;
+                if (!mode_mask->get(z, y, x)) return false;
     return true;
 }
 
