@@ -16,16 +16,18 @@ BlockGrowth::BlockGrowth(const Flat3D<char>& model_slices,
 void BlockGrowth::run(Block parent_block_) {
     parent_block = parent_block_;
 
-    // Initialize compressed mask - use bool for better cache efficiency
+    // Initialize compressed mask - use unsigned char for bool-like
     compressed = Flat3D<unsigned char>(parent_block.depth, parent_block.height, parent_block.width, 0);
  
-    // Process all uncompressed voxels using flood fill
+    // Process all uncompressed voxels using greedy block growth
     for (int z = 0; z < parent_block.depth; ++z) {
         for (int y = 0; y < parent_block.height; ++y) {
             for (int x = 0; x < parent_block.width; ++x) {
                 if (!compressed.at(z, y, x)) {
                     Block block = flood_fill_block(x, y, z);
-                    print_block(block);
+                    if (block.volume > 0) {  // Only print if valid block
+                        print_block(block);
+                    }
                 }
             }
         }
@@ -35,44 +37,68 @@ void BlockGrowth::run(Block parent_block_) {
 Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
     char target_tag = model.at(start_z, start_y, start_x);
     
-    // Collect all connected voxels of the same type
-    vector<tuple<int, int, int>> connected_voxels;
-    std::stack<tuple<int, int, int>> stack;
-    stack.push({start_x, start_y, start_z});
-    
-    // Temporary visited array to avoid double-processing during flood fill
-    Flat3D<unsigned char> visited(parent_block.depth, parent_block.height, parent_block.width, 0);
-    
-    while (!stack.empty()) {
-        auto [x, y, z] = stack.top();
-        stack.pop();
-        
-        // Skip if out of bounds, already processed, or different material
-        if (!in_bounds(x, y, z) || compressed.at(z, y, x) || visited.at(z, y, x) ||
-            model.at(z, y, x) != target_tag) {
-            continue;
-        }
-        
-        visited.at(z, y, x) = 1;
-        connected_voxels.push_back({x, y, z});
-        
-        // Add 6-connected neighbors to stack
-        stack.push({x + 1, y, z});
-        stack.push({x - 1, y, z});
-        stack.push({x, y + 1, z});
-        stack.push({x, y - 1, z});
-        stack.push({x, y, z + 1});
-        stack.push({x, y, z - 1});
+    // Optional: Skip if tag not in table (assume air/empty)
+    if (tag_table.find(target_tag) == tag_table.end()) {
+        // Still mark this single voxel to avoid reprocessing, but don't create block
+        compressed.at(start_z, start_y, start_x) = 1;
+        return Block(0, 0, 0, 0, 0, 0, '\0');  // Invalid block (volume=0)
     }
 
-    // Create the best rectangular block from connected voxels
-    Block result = create_rectangular_block(connected_voxels, target_tag);
-    
-    // Mark all voxels in the result block as compressed
-    for (int z = result.z_offset; z < result.z_offset + result.depth; ++z) {
-        for (int y = result.y_offset; y < result.y_offset + result.height; ++y) {
-            for (int x = result.x_offset; x < result.x_offset + result.width; ++x) {
-                compressed.at(z, y, x) = 1;
+    // Greedy growth: start from seed
+    int x = start_x;
+    int y = start_y;
+    int z = start_z;
+
+    // Grow width (x direction)
+    int width = 1;
+    while (in_bounds(x + width, y, z) &&
+           model.at(z, y, x + width) == target_tag &&
+           !compressed.at(z, y, x + width)) {
+        width++;
+    }
+
+    // Grow height (y direction)
+    int height = 1;
+    bool can_grow = true;
+    while (can_grow && in_bounds(x, y + height, z)) {
+        for (int xx = x; xx < x + width; ++xx) {
+            if (!in_bounds(xx, y + height, z) ||
+                model.at(z, y + height, xx) != target_tag ||
+                compressed.at(z, y + height, xx)) {
+                can_grow = false;
+                break;
+            }
+        }
+        if (can_grow) height++;
+    }
+
+    // Grow depth (z direction)
+    int depth = 1;
+    can_grow = true;
+    while (can_grow && in_bounds(x, y, z + depth)) {
+        for (int yy = y; yy < y + height; ++yy) {
+            for (int xx = x; xx < x + width; ++xx) {
+                if (!in_bounds(xx, yy, z + depth) ||
+                    model.at(z + depth, yy, xx) != target_tag ||
+                    compressed.at(z + depth, yy, xx)) {
+                    can_grow = false;
+                    break;
+                }
+            }
+            if (!can_grow) break;
+        }
+        if (can_grow) depth++;
+    }
+
+    // Create the block
+    Block result(parent_block.x + x, parent_block.y + y, parent_block.z + z,
+                 width, height, depth, target_tag, x, y, z);
+
+    // Mark the rectangle as compressed
+    for (int zz = z; zz < z + depth; ++zz) {
+        for (int yy = y; yy < y + height; ++yy) {
+            for (int xx = x; xx < x + width; ++xx) {
+                compressed.at(zz, yy, xx) = 1;
             }
         }
     }
@@ -80,103 +106,9 @@ Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
     return result;
 }
 
-Block BlockGrowth::create_rectangular_block(const vector<tuple<int, int, int>>& voxels, char target_tag) {
-    if (voxels.empty()) {
-        throw std::runtime_error("Cannot create block from empty voxel set");
-    }
-    
-    // Find bounding box of all connected voxels
-    int min_x = std::get<0>(voxels[0]), max_x = min_x;
-    int min_y = std::get<1>(voxels[0]), max_y = min_y;
-    int min_z = std::get<2>(voxels[0]), max_z = min_z;
-    
-    for (const auto& [x, y, z] : voxels) {
-        min_x = std::min(min_x, x);
-        max_x = std::max(max_x, x);
-        min_y = std::min(min_y, y);
-        max_y = std::max(max_y, y);
-        min_z = std::min(min_z, z);
-        max_z = std::max(max_z, z);
-    }
-    
-    int width = max_x - min_x + 1;
-    int height = max_y - min_y + 1;
-    int depth = max_z - min_z + 1;
-// Check if the bounding box is completely filled with target material
-    bool is_solid_box = true;
-    for (int z = min_z; z <= max_z && is_solid_box; ++z) {
-        for (int y = min_y; y <= max_y && is_solid_box; ++y) {
-            for (int x = min_x; x <= max_x && is_solid_box; ++x) {
-                if (compressed.at(z, y, x) || model.at(z, y, x) != target_tag) {
-                    is_solid_box = false;
-                }
-            }
-        }
-    }
-    
-    if (is_solid_box) {
-        // Perfect rectangular block - use the full bounding box
-        return Block(parent_block.x + min_x, parent_block.y + min_y, parent_block.z + min_z,
-                     width, height, depth, target_tag, min_x, min_y, min_z);
-    } else {
-        // Irregular shape - find the largest rectangular sub-region
-        int best_volume = 0;
-        Block best_block(0, 0, 0, 1, 1, 1, target_tag);
-        
-        // Try different rectangular regions within the bounding box
-        for (int z = min_z; z <= max_z; ++z) {
-            for (int y = min_y; y <= max_y; ++y) {
-                for (int x = min_x; x <= max_x; ++x) {
-                    if (compressed.at(z, y, x) || model.at(z, y, x) != target_tag) continue;
-                    
-                    // Try to grow a rectangle from this point
-                    int max_w = max_x - x + 1;
-                    int max_h = max_y - y + 1;
-                    int max_d = max_z - z + 1;
-                    
-                    for (int d = 1; d <= max_d; ++d) {
-                        for (int h = 1; h <= max_h; ++h) {
-                            for (int w = 1; w <= max_w; ++w) {
-                                if (x + w - 1 > max_x || y + h - 1 > max_y || z + d - 1 > max_z) break;
-                                
-                                // Check if this rectangle is valid
-                                bool valid = true;
-                                for (int zz = z; zz < z + d && valid; ++zz) {
-                                    for (int yy = y; yy < y + h && valid; ++yy) {
-                                        for (int xx = x; xx < x + w && valid; ++xx) {
-                                            if (compressed.at(zz, yy, xx) || model.at(zz, yy, xx) != target_tag) {
-                                                valid = false;
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                if (valid && w * h * d > best_volume) {
-                                    best_volume = w * h * d;
-                                    best_block = Block(parent_block.x + x, parent_block.y + y, parent_block.z + z,
-                                                       w, h, d, target_tag, x, y, z);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // If no good rectangle found, just use a single voxel
-        if (best_volume == 0) {
-            auto [x, y, z] = voxels[0];
-            best_block = Block(parent_block.x + x, parent_block.y + y, parent_block.z + z,
-                               1, 1, 1, target_tag, x, y, z);
-        }
-        
-        return best_block;
-    }
-}
-
 void BlockGrowth::print_block(const Block& block) {
     auto it = tag_table.find(block.tag);
-    const string& label = (it == tag_table.end()) ? string(1, block.tag) : it->second;
+    if (it == tag_table.end()) return;  // Skip printing if not in table (optional: remove if air should be printed)
+    const string& label = it->second;
     block.print_block(label);
-
 }

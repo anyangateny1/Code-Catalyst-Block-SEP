@@ -127,11 +127,20 @@ void BlockModel::compress_slices(int top_slice, int n_slices) {
             int width  = std::min(parent_x, x_count - x);
             int height = std::min(parent_y, y_count - y);
             int depth  = n_slices;
+            
+            // Get the tag from the first voxel in this parent block
             char tag = model.at(z % parent_z, y, x);
 
+            // Create parent block with proper boundaries
             Block parentBlock(x, y, z, width, height, depth, tag);
-            Flat3D<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
+            
+            // Create model slices with proper bounds checking
+            int actual_y_end = std::min(y + height, y_count);
+            int actual_x_end = std::min(x + width, x_count);
+            
+            Flat3D<char> model_slices = slice_model(model, depth, y, actual_y_end, x, actual_x_end);
 
+            // Run block growth algorithm
             BlockGrowth growth(model_slices, tag_table);
             growth.run(parentBlock);
         }

@@ -44,11 +44,9 @@ private:
     
     // Use bool for better memory efficiency and cache performance
     Flat3D<unsigned char> compressed;
-    // Core flood-fill algorithm
-    Block flood_fill_block(int start_x, int start_y, int start_z);
     
-    // Try to create rectangular blocks from connected components
-    Block create_rectangular_block(const std::vector<std::tuple<int, int, int>>& voxels, char target_tag);
+    // Core greedy growth algorithm to form a rectangular block
+    Block flood_fill_block(int start_x, int start_y, int start_z);
     
     // Helper to print block with proper label lookup
     void print_block(const Block& block);
