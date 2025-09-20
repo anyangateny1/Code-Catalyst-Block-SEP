@@ -37,13 +37,6 @@ void BlockGrowth::run(Block parent_block_) {
 Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
     char target_tag = model.at(start_z, start_y, start_x);
     
-    // Optional: Skip if tag not in table (assume air/empty)
-    if (tag_table.find(target_tag) == tag_table.end()) {
-        // Still mark this single voxel to avoid reprocessing, but don't create block
-        compressed.at(start_z, start_y, start_x) = 1;
-        return Block(0, 0, 0, 0, 0, 0, '\0');  // Invalid block (volume=0)
-    }
-
     // Greedy growth: start from seed
     int x = start_x;
     int y = start_y;
@@ -108,7 +101,6 @@ Block BlockGrowth::flood_fill_block(int start_x, int start_y, int start_z) {
 
 void BlockGrowth::print_block(const Block& block) {
     auto it = tag_table.find(block.tag);
-    if (it == tag_table.end()) return;  // Skip printing if not in table (optional: remove if air should be printed)
     const string& label = it->second;
     block.print_block(label);
 }
