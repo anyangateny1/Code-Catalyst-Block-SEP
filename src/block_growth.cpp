@@ -5,7 +5,7 @@
 using std::string;
 using std::unordered_map;
 
-BlockGrowth::BlockGrowth(const Flat3D<char>& model_slices,
+BlockGrowth::BlockGrowth(const Flat3DView<char>& model_slices,
                          const unordered_map<char, string>& tag_table)
     : model(model_slices), tag_table(tag_table) {}
 

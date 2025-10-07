@@ -25,16 +25,32 @@ public:
     }
 };
 
+// Read-only view into a Flat3D<T> without copying (adds origins and window dims)
+template <typename T>
+class Flat3DView {
+public:
+    const Flat3D<T>& ref;
+    int z0, y0, x0;
+    int depth, height, width;
+
+    Flat3DView(const Flat3D<T>& r, int z0_, int y0_, int x0_, int d, int h, int w)
+        : ref(r), z0(z0_), y0(y0_), x0(x0_), depth(d), height(h), width(w) {}
+
+    inline const T& at(int z, int y, int x) const {
+        return ref.at(z0 + z, y0 + y, x0 + x);
+    }
+};
+
 // BlockGrowth encapsulates the "fit & grow" compression logic for a parent block
 // over a sub-volume (model_slices). The tag_table maps single-char tags to labels.
 class BlockGrowth {
 public:
-    BlockGrowth(const Flat3D<char>& model_slices, const std::unordered_map<char, std::string>& tag_table);
+    BlockGrowth(const Flat3DView<char>& model_slices, const std::unordered_map<char, std::string>& tag_table);
 
     void run(Block parent_block);
 
 private:
-    const Flat3D<char>& model;
+    const Flat3DView<char>& model;
     const std::unordered_map<char, std::string>& tag_table;
 
     Block parent_block{0, 0, 0, 0, 0, 0, '\0'};

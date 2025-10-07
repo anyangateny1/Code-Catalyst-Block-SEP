@@ -130,9 +130,8 @@ void BlockModel::compress_slices(int top_slice, int n_slices) {
             char tag = model.at(z % parent_z, y, x);
 
             Block parentBlock(x, y, z, width, height, depth, tag);
-            Flat3D<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
-
-            BlockGrowth growth(model_slices, tag_table);
+            Flat3DView<char> view(model, z % parent_z, y, x, depth, height, width);
+            BlockGrowth growth(view, tag_table);
             growth.run(parentBlock);
         }
     }
