@@ -1,6 +1,7 @@
 #include "block_growth.h"
 #include <stdexcept>
 #include <algorithm>
+#include "simd_utils.h"
 
 using std::string;
 using std::unordered_map;
@@ -44,13 +45,49 @@ char BlockGrowth::get_mode_of_uncompressed(const Block& blk) const {
     int x0 = blk.x_offset, x1 = blk.x_offset + blk.width;
 
     int freq[256] = {0};
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                if (compressed.at(z, y, x) == 0) {
-                    unsigned char uc = static_cast<unsigned char>(model.at(z, y, x));
-                    ++freq[uc];
+    for (int z = z0; z < z1; ++z) {
+        for (int y = y0; y < y1; ++y) {
+            const char* compRow = &compressed.data[(z * compressed.height + y) * compressed.width];
+            const unsigned char* modelRow = reinterpret_cast<const unsigned char*>(&model.data[(z * model.height + y) * model.width]);
+            int w = x1 - x0;
+#if SEP_HAVE_SSE2
+            int i = 0;
+            // process 16-byte chunks
+            for (; i + 16 <= w; i += 16) {
+                const __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(compRow + x0 + i));
+                const __m128i zc = _mm_setzero_si128();
+                const __m128i cmp = _mm_cmpeq_epi8(c, zc); // 0xFF where comp==0 (uncompressed)
+                int mask = _mm_movemask_epi8(cmp);
+                if (mask == 0) {
+                    // all compressed -> skip
+                } else if (mask == 0xFFFF) {
+                    // all uncompressed -> tally all 16
+                    const unsigned char* p = modelRow + x0 + i;
+                    // unrolled tally
+                    ++freq[p[0]]; ++freq[p[1]]; ++freq[p[2]]; ++freq[p[3]];
+                    ++freq[p[4]]; ++freq[p[5]]; ++freq[p[6]]; ++freq[p[7]];
+                    ++freq[p[8]]; ++freq[p[9]]; ++freq[p[10]]; ++freq[p[11]];
+                    ++freq[p[12]]; ++freq[p[13]]; ++freq[p[14]]; ++freq[p[15]];
+                } else {
+                    // mixed -> check each lane
+                    const unsigned char* p = modelRow + x0 + i;
+                    const unsigned char* cbytes = reinterpret_cast<const unsigned char*>(compRow + x0 + i);
+                    for (int k = 0; k < 16; ++k) {
+                        if (cbytes[k] == 0) ++freq[p[k]];
+                    }
                 }
+            }
+            // remainder
+            for (; i < w; ++i) {
+                if (compRow[x0 + i] == 0) ++freq[modelRow[x0 + i]];
+            }
+#else
+            for (int x = x0; x < x1; ++x) {
+                if (compRow[x] == 0) ++freq[modelRow[x]];
+            }
+#endif
+        }
+    }
 
     char best = 0;
     int bestCount = -1;
@@ -79,14 +116,30 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
                 int x_end = x_off + width;
                 if (x_end > parent_x_end) break;
 
-                if (window_is_all(mode, z_off, z_end, y_off, y_end, x_off, x_end) &&
-                    window_is_all_uncompressed(z_off, z_end, y_off, y_end, x_off, x_end)) {
-
-                    Block b(x, y, z, width, height, depth, mode, x_off, y_off, z_off);
-                    grow_block(b, b);
-                    mark_compressed(z_off, z_off+b.depth, y_off, y_off+b.height, x_off, x_off+b.width, 1);
-                    return b;
+                // SIMD-accelerated row checks first to quickly reject non-uniform windows
+                bool uniform = true;
+                for (int zz = z_off; zz < z_end && uniform; ++zz) {
+                    for (int yy = y_off; yy < y_end && uniform; ++yy) {
+                        const char* row = &model.data[(zz * model.height + yy) * model.width];
+                        if (!row_all_equal(row + x_off, static_cast<std::size_t>(x_end - x_off), mode)) uniform = false;
+                    }
                 }
+                if (uniform) {
+                    bool unc = true;
+                    for (int zz = z_off; zz < z_end && unc; ++zz) {
+                        for (int yy = y_off; yy < y_end && unc; ++yy) {
+                            const char* rowc = &compressed.data[(zz * compressed.height + yy) * compressed.width];
+                            if (!row_all_zero(rowc + x_off, static_cast<std::size_t>(x_end - x_off))) unc = false;
+                        }
+                    }
+                    if (unc) {
+                        Block b(x, y, z, width, height, depth, mode, x_off, y_off, z_off);
+                        grow_block(b, b);
+                        mark_compressed(z_off, z_off+b.depth, y_off, y_off+b.height, x_off, x_off+b.width, 1);
+                        return b;
+                    }
+                }
+
             }
         }
     }
@@ -99,18 +152,22 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
 
 bool BlockGrowth::window_is_all(char val,
                                 int z0, int z1, int y0, int y1, int x0, int x1) const {
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                if (model.at(z, y, x) != val) return false;
+    for (int z = z0; z < z1; ++z) {
+        for (int y = y0; y < y1; ++y) {
+            const char* row = &model.data[(z * model.height + y) * model.width];
+            if (!row_all_equal(row + x0, static_cast<std::size_t>(x1 - x0), val)) return false;
+        }
+    }
     return true;
 }
 
 bool BlockGrowth::window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const {
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                if (compressed.at(z, y, x) != 0) return false;
+    for (int z = z0; z < z1; ++z) {
+        for (int y = y0; y < y1; ++y) {
+            const char* row = &compressed.data[(z * compressed.height + y) * compressed.width];
+            if (!row_all_zero(row + x0, static_cast<std::size_t>(x1 - x0))) return false;
+        }
+    }
     return true;
 }
 
