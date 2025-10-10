@@ -1,345 +1,138 @@
 # SEP-UG-33 Block Model Project
 
-A C++ implementation of a 3D block model compression algorithm that reads model specifications and performs block fitting and growth operations.
+A C++ implementation of a 3D block model compression algorithm that reads model specifications and performs block fitting and growth operations for optimal space utilisation.
 
 ## Project Overview
 
-This project implements a block-based 3D model compression system:
+This project implements a complete block-based 3D model compression system with the following workflow: input processing → block fitting algorithm → compressed output → validation. The system provides:
 
-1. **Input**: 3D model data with specifications, tag tables, and voxel grids
-2. **Processing**: Block fitting and growth algorithm for optimal compression
-3. **Output**: Compressed block format (`x,y,z,width,height,depth,label`)
-4. **Validation**: Reconstruction verification to ensure data integrity
-
-The system is designed with separation of concerns:
-- **Core Algorithm** (`src/`): Block model processing and compression
-- **Testing** (`tests/`): Comprehensive unit and integration tests
-- **Build System** (`Makefile`): Cross-platform compilation and automation
+- **Advanced Compression Algorithm**: Block growth algorithm for optimal 3D space utilisation
+- **Cross-Platform Support**: Native Linux builds with automated Windows cross-compilation
+- **Comprehensive Testing**: Unit tests, integration tests, and output validation framework
+- **Professional Code Quality**: C++17 standard, automated formatting, static analysis
+- **Complete Documentation**: Technical guides, coding standards, and workflow documentation
 
 ## Project Structure
 
 ```
 SEP-UG-33/
-├── src/                    # Source files (.cpp)
-│   ├── main.cpp           # Main entry point
-│   ├── block.cpp          # Block class implementation
-│   ├── block_growth.cpp   # Block growth algorithm
-│   └── block_model.cpp    # Model reading and processing
+├── src/                    # Source files (main.cpp, block.cpp, block_growth.cpp, block_model.cpp)
 ├── include/               # Header files (.h)
-│   ├── block.h
-│   ├── block_growth.h
-│   └── block_model.h
-├── tests/                 # Test files and data
-│   ├── validate_test.cpp  # 3D model validation test
-│   ├── compression_test.cpp # Compression algorithm unit tests
-│   └── data/             # Test case data
-│       ├── case1.txt
-│       └── case2.txt
-├── docs/                  # Documentation
-│   └── compileHelpNotes.txt
-├── build/                 # Build output directory
-├── Makefile              # Build configuration
-└── README.md             # This file
+├── tests/                 # Test programs and test data (case1.txt, case2.txt)
+├── docs/                  # Complete documentation (PDFs)
+├── scripts/              # Development automation scripts
+├── build/                # Build output directory
+└── Makefile              # Build system configuration
 ```
 
-## Building the Project
+## Development Environment
 
-### Build System (Makefile)
+### Automated Setup
 
-The project uses a comprehensive Makefile for cross-platform compilation and automation.
+Execute the following command for complete environment configuration:
 
-#### Prerequisites
+```bash
+make install-deps
+```
+
+This command installs the C++ toolchain, formatting tools, cross-compilation tools for Windows, and configures IDE settings. Compatible with Ubuntu/Debian, macOS, and Windows platforms.
+
+### Manual Setup
+
+For manual installation or troubleshooting, consult the [Development Environment Guide](docs/Dev%20Environment%20Guide.pdf) which provides:
+
+- Step-by-step compiler and tool installation procedures
+- IDE configuration (VSCode, CLion) with IntelliSense setup
+- vcpkg package management configuration
+- CMake build system setup
+
+### Prerequisites
 
 - g++ compiler with C++17 support
 - make utility
-- For Windows cross-compilation: mingw-w64
-- For IDE support: bear (optional)
+- mingw-w64 (for Windows cross-compilation)
 
-#### Quick Start
+## Contributing
 
-```bash
-# Clone and enter the project
-cd SEP-UG-33
+### Development Workflow
 
-# Install dependencies (Ubuntu/Debian)
-make install-deps
+1. **Environment Setup**: Execute `make install-deps`
+2. **Branch Creation**: `git checkout -b UG33-<number>-<description>`
+3. **Code Development**: Implement changes following established coding standards
+4. **Code Formatting**: Execute `./scripts/format-code.sh` (mandatory)
+5. **Testing**: Execute `make test-all` (all tests must pass)
+6. **Cross-Platform Verification**: Execute `make windows-package`
+7. **Pull Request**: Submit for team review and approval
 
-# Build everything and run tests
-make test-all
+### Quality Requirements
 
-# Run with sample data
-make run-case1
-```
+All contributions must satisfy the following criteria:
 
-#### Build Commands
+- Code formatted using `./scripts/format-code.sh` (clang-format)
+- All tests pass: `make test-all`
+- Windows build successful: `make windows-package`
+- Explicit `std::` prefixes (no `using namespace std`)
+- Conventional commit message format (e.g., `feat:`, `fix:`, `docs:`)
 
-```bash
-# Main targets
-make all                    # Build main executable (default)
-make test                   # Build test executables
-make windows                # Cross-compile for Windows
-make windows-package        # One-command Windows .exe.zip creation
+Refer to the [Git & GitHub Workflow Guide](docs/Git%20%26%20Github%20Workflow.pdf) for comprehensive branching strategy, commit conventions, and pull request procedures.
 
-# Testing
-make test-all              # Run all tests (unit + integration)
-make test-compression-unit # Run compression algorithm tests
-make test-integration      # Run integration tests
+## Documentation
 
-# Running
-make run-case1             # Run with case1.txt
-make run-case2             # Run with case2.txt
+The project includes comprehensive documentation covering all development aspects:
 
-# IDE Support
-make compile-commands      # Generate compile_commands.json for IDE
+### Developer Resources
 
-# Utility
-make clean                 # Clean build artifacts
-make help                  # Show all available targets
-```
+- **[Development Environment Guide](docs/Dev%20Environment%20Guide.pdf)**: Complete setup instructions for all platforms, IDE configuration, and troubleshooting
+- **[Coding Standards & Quality Guidelines](docs/Coding%20Standards.pdf)**: Code style requirements, naming conventions, static analysis, and testing standards
+- **[Git & GitHub Workflow Guide](docs/Git%20%26%20Github%20Workflow.pdf)**: Version control workflow, branching strategy, and collaboration process
 
-## Code Formatting
+### Technical Reference
 
-This project uses `clang-format` to maintain consistent code style. The formatting is automatically applied:
+- **[Project Structure & Build Guide](docs/Project%20Structure.pdf)**: Complete build system reference, testing framework, and cross-platform compilation
+- **[Jira Workflow Guidelines](docs/Jira%20Workflow.pdf)**: Project management, ticket creation, and task tracking
 
-### Automatic Formatting
+Recommended reading sequence: Development Environment Guide → Coding Standards → Git Workflow Guide.
 
-- **Pre-commit Hook**: Code is automatically formatted before each commit
-- **CI Pipeline**: Formatting is checked in the CI pipeline to ensure consistency
+## Build & Test Instructions
 
-### Manual Formatting
+### Essential Commands
 
 ```bash
-# Format all C++ files in the project
-./scripts/format-code.sh
+# Primary build and test operations
+make test-all             # Execute all tests (unit + integration)
+make                      # Build main executable
+make windows-package      # Generate Windows .exe.zip for deployment
 
-# Check formatting without making changes
-find src include tests -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror
+# Development operations
+make test-compression-unit # Execute algorithm unit tests
+make test-integration     # Execute end-to-end pipeline tests
+make clean                # Remove build artifacts
+make help                 # Display all available targets
 ```
 
-### Installation
+### Build System
 
-If you don't have `clang-format` installed:
+The build system provides automated dependency management, cross-platform compilation, and comprehensive test execution. Execute `make help` for complete target descriptions and usage information.
 
-```bash
-# macOS
-brew install clang-format
+For build troubleshooting, consult the [Project Structure & Build Guide](docs/Project%20Structure.pdf).
 
-# Ubuntu/Debian
-sudo apt install clang-format
+## Algorithm Overview
 
-# Windows
-choco install llvm
-```
+The compression algorithm processes 3D voxel data through a sophisticated block-fitting methodology:
 
-The project includes a `.clang-format` configuration file that defines the coding style standards.
-```
+1. **Input Processing**: Reads model specifications, tag tables, and voxel grid data
+2. **Block Growth Algorithm**: Identifies optimal rectangular blocks to minimise compressed size
+3. **Output Generation**: Produces compressed format (`x,y,z,width,height,depth,label`)
+4. **Validation**: Reconstructs the original model to verify compression accuracy
 
-### Windows Deployment
+Sample data files in `tests/data/` (case1.txt, case2.txt) demonstrate the input format and provide realistic test scenarios.
 
-For easy Windows deployment and submission:
+## Quick Links
 
-```bash
-# One-command Windows packaging
-make windows-package
+- **Test Data**: `tests/data/` (case1.txt, case2.txt sample files)
+- **Build Output**: `build/` (compiled executables and artifacts)
+- **Development Scripts**: `scripts/` (formatting, environment setup)
+- **Build Reference**: `make help` (complete target documentation)
+- **Documentation**: `docs/` (comprehensive PDF guides)
 
-# This will:
-# 1. Check/install MinGW-w64 cross-compiler
-# 2. Compile with: x86_64-w64-mingw32-g++ -std=c++17 -O2 -static -static-libstdc++ -static-libgcc
-# 3. Create block_model.exe.zip with no folder structure
-# 4. Ready for submission: build/block_model.exe.zip
-```
 
-### Running the Project
-
-```bash
-# Run with test data
-make run-case1
-make run-case2
-
-# Or run directly
-./build/block_model < tests/data/case1.txt
-```
-
-## Testing
-
-This project includes a comprehensive test suite with two distinct test programs:
-
-### Test Programs
-
-1. **`compression_test.cpp`** - Unit tests for the compression algorithm
-   - Tests BlockModel functionality directly
-   - Validates compression with test case data
-   - Counts generated blocks and output
-
-2. **`validate_test.cpp`** - Integration tests for output validation
-   - Takes compressed block output (format: `x,y,z,width,height,depth,label`)
-   - Reconstructs 3D model from compressed blocks
-   - Outputs visual representation to verify correctness
-
-### Test Commands
-
-#### Comprehensive Testing
-```bash
-make test-all              # Run all tests (unit + integration)
-make test                  # Build both test executables
-```
-
-#### Unit Testing (Compression Algorithm)
-```bash
-make test-compression-unit # Test compression algorithm directly
-make run-compression-test  # Same as above
-```
-
-#### Integration Testing (End-to-End Pipeline)
-```bash
-make test-integration      # Run compression → validation pipeline
-make validate-case1        # Validate main program output with case1.txt
-make validate-case2        # Validate main program output with case2.txt
-```
-
-#### Individual Test Programs
-```bash
-make run-validate-test     # Interactive validation test (stdin input)
-make run-compression-test  # Run compression unit tests
-```
-
-### Test Data
-
-Test data is located in `tests/data/`:
-- `case1.txt` - Test case with smaller dimensions (64x8x5)
-- `case2.txt` - Test case with larger dimensions (64x16x5)
-
-### Example Test Output
-
-**Compression Unit Tests:**
-```bash
-$ make test-compression-unit
-=== Compression Test Suite ===
-✓ Basic compression test passed
-✓ Case1 compression test passed - generated 86 blocks
-✓ Case2 compression test passed - output length: 2134 chars
-All compression tests passed!
-```
-
-**Integration Tests:**
-```bash
-$ make test-integration
-Running integration tests (compression + validation)...
-✓ Case 1 integration passed
-✓ Case 2 integration passed
-All integration tests completed!
-```
-
-**Complete Test Suite:**
-```bash
-$ make test-all
-# Runs compression unit tests + integration tests
-# Shows comprehensive pass/fail status for all components
-```
-
-## Development Standards
-
-This project follows comprehensive development standards to ensure code quality, consistency, and maintainability. See detailed documentation:
-
-- **[Development Standards](docs/DEVELOPMENT_STANDARDS.md)** - Complete development guidelines
-- **[Developer Setup](docs/DEVELOPER_SETUP.md)** - Environment setup instructions
-
-### Key Standards
-
-- **Build System**: Makefile with comprehensive targets
-- **C++ Standard**: C++17 with strict compiler warnings
-- **Code Style**: Google-based style with 4-space indentation
-- **Testing**: Comprehensive unit and integration tests
-- **Cross-platform**: Linux native, Windows cross-compilation
-
-### Quick Development Setup
-
-```bash
-# 🚀 One-command setup (recommended)
-make install-deps
-
-# 📖 Complete documentation  
-# See docs/development-environment.pdf & docs/coding-standards.pdf
-
-# ⚡ Manual verification
-make test-all
-make compile-commands  # For IDE support
-```
-
-## Development Workflow
-
-### Git Workflow
-
-**Work in separate branch pulled from main linked to a ticket, spaces in ticket name separated by hyphen.**
-- Format: `UG33-ticketnumber-ticketname`
-- Example: `UG33-19-initiate-group-kick-off-meeting`
-
-**When trying to push to main, create a pull request.**
-- Resolve merge conflicts by rebasing to main
-
-**Commit according to conventional commits:** https://www.conventionalcommits.org/en/v1.0.0/
-
-Common types:
-- `feat`: new feature
-- `fix`: bug fix
-- `docs`: documentation only
-- `refactor`: code change, no new feature or fix
-- `chore`: maintenance tasks (build, dependencies)
-
-Examples:
-- `feat: add Google login support`
-- `chore: update React to v18`
-
-**Pull request must be approved by someone other than branch-owner before push to main.**
-
-### Code Quality Standards
-
-Before submitting a PR:
-
-```bash
-# 🎨 Format code (required)
-./scripts/format-code.sh
-
-# ✅ Run all tests
-make test-all
-
-# 🪟 Verify cross-platform build
-make windows-package
-
-# 💡 Generate IDE support
-make compile-commands
-
-# 📚 Full guides: docs/development-environment.tex & docs/coding-standards.tex
-```
-
-### Available Make Targets
-
-Run `make help` to see all available commands:
-
-#### Build Targets
-- `all` - Build the main executable (default)
-- `test` - Build both test executables
-- `windows` - Cross-compile for Windows
-- `windows-zip` - Create Windows executable zip file
-- `windows-package` - Complete Windows build and packaging
-
-#### Test Targets
-- `test-all` - Run all tests (unit + integration)
-- `test-compression-unit` - Run compression algorithm unit tests  
-- `test-integration` - Run integration tests (compress + validate)
-- `run-validate-test` - Run validation test (interactive)
-- `run-compression-test` - Run compression unit tests
-- `validate-case1` - Validate main program output with case1.txt
-- `validate-case2` - Validate main program output with case2.txt
-
-#### Run Targets
-- `run-case1` - Run main program with case1.txt data
-- `run-case2` - Run main program with case2.txt data
-
-#### Utility Targets
-- `clean` - Clean build artifacts
-- `clean-all` - Clean everything in build directory
-- `compile-commands` - Generate compile_commands.json for IDE support
-- `install-deps` - Install all required dependencies
-- `install-mingw` - Install MinGW-w64 for Windows cross-compilation
-- `help` - Show help message
