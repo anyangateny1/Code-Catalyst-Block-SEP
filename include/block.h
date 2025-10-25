@@ -2,6 +2,7 @@
 #define BLOCK_H
 
 #include <string>
+#include <mutex>
 
 // Represents an axis-aligned rectangular prism ("block") in the model.
 // Coordinates (x,y,z) are absolute in the global grid.
@@ -41,6 +42,7 @@ public:
   //   x,y,z,width,height,depth,label
   // (label is looked up by BlockGrowth and passed in here)
   void print_block(const std::string& label) const;
+  void print_block(const std::string& label, std::mutex& print_mutex) const; 
 };
 
 #endif // BLOCK_H

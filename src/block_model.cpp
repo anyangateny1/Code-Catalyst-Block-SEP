@@ -1,13 +1,21 @@
 #include "block_model.h"
+#include "thread_pool.h"
 #include <algorithm>
 #include <cctype>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include <thread>
+#include <memory>
 
 using std::string;
 using std::unordered_map;
 using std::vector;
+using std::thread;
+using std::make_unique;
+using std::unique_ptr;
+
+const unsigned int MAX_THREADS = std::thread::hardware_concurrency();
 
 BlockModel::BlockModel() {
     // Auto-detect optimal thread count, but cap at 8 for diminishing returns
@@ -121,19 +129,38 @@ Flat3D<char> BlockModel::slice_model(const Flat3D<char>& src,
 }
 
 void BlockModel::compress_slices(int top_slice, int n_slices) {
+    int num_threads = std::thread::hardware_concurrency();
+    ThreadPool pool(num_threads);
+    std::vector<std::future<void>> futures;
+
     for (int y = 0; y < y_count; y += parent_y) {
         for (int x = 0; x < x_count; x += parent_x) {
-            int z = top_slice;
-            int width  = std::min(parent_x, x_count - x);
-            int height = std::min(parent_y, y_count - y);
-            int depth  = n_slices;
-            char tag = model.at(z % parent_z, y, x);
+            futures.push_back(pool.enqueue([this, x, y, top_slice, n_slices]() {
+                // Build the parent block (defines region being processed)
+                int width = std::min(parent_x, x_count - x);
+                int height = std::min(parent_y, y_count - y);
+                int depth = n_slices;
+                char tag = model.at(top_slice % parent_z, y, x);
 
-            Block parentBlock(x, y, z, width, height, depth, tag);
-            Flat3D<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
+                Block parentBlock(x, y, top_slice, width, height, depth, tag);
 
-            BlockGrowth growth(model_slices, tag_table);
-            growth.run(parentBlock);
+                // Create a view into the existing model
+                auto model_slices = Flat3DView<char>(
+                    model,        // base model
+                    depth,        // number of slices
+                    y,            // y_start
+                    y + height,   // y_end
+                    x,            // x_start
+                    x + width     // x_end
+                );
+
+                BlockGrowth growth(model_slices, tag_table);
+                growth.run(parentBlock);
+            }));
         }
     }
+
+    // Wait for all work to finish
+    for (auto &f : futures)
+        f.get();
 }
