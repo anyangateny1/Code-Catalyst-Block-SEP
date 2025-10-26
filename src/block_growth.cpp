@@ -1,6 +1,7 @@
 #include "block_growth.h"
 #include <stdexcept>
 #include <algorithm>
+#include <limits>
 
 using std::string;
 using std::unordered_map;
@@ -15,22 +16,122 @@ void BlockGrowth::run(Block parent_block_) {
     parent_y_end = parent_block.y_offset + parent_block.height;
     parent_z_end = parent_block.z_offset + parent_block.depth;
 
-    // Initialise compressed mask to false
     compressed = Vec3<bool>(
         parent_block.depth,
-        std::vector<std::vector<bool>>(parent_block.height, std::vector<bool>(parent_block.width, false))
+        std::vector<std::vector<bool>>(parent_block.height, 
+                                       std::vector<bool>(parent_block.width, false))
     );
 
-    // Loop until the entire parent block region is compressed
     while (!all_compressed()) {
-        char mode = get_mode_of_uncompressed(parent_block);
-        int cube_size = std::min({parent_block.width, parent_block.height, parent_block.depth});
-        Block b = fit_block(mode, cube_size, cube_size, cube_size);
+        // Find the largest possible block in uncompressed space
+        Block best_block = fit_block('\0', 0, 0, 0);
+        
+        mark_compressed(best_block.z_offset, best_block.z_offset + best_block.depth,
+                       best_block.y_offset, best_block.y_offset + best_block.height,
+                       best_block.x_offset, best_block.x_offset + best_block.width, true);
+        
+        auto it = tag_table.find(best_block.tag);
+        const string& label = (it == tag_table.end()) ? string(1, best_block.tag) : it->second;
+        best_block.print_block(label);
+    }
+}
 
-        // Lookup label and print (exact same output format as Python)
-        auto it = tag_table.find(b.tag);
-        const string& label = (it == tag_table.end()) ? string(1, b.tag) : it->second;
-        b.print_block(label);
+// Find the largest block by scanning all uncompressed positions
+Block BlockGrowth::fit_block(char /*mode*/, int /*width*/, int /*height*/, int /*depth*/) {
+    Block best_block(0, 0, 0, 0, 0, 0, '\0');
+    int best_volume = 0;
+    
+    // Calculate max possible volume in remaining space
+    int max_possible = (parent_x_end - parent_block.x_offset) * 
+                       (parent_y_end - parent_block.y_offset) * 
+                       (parent_z_end - parent_block.z_offset);
+    
+    for (int z = parent_block.z_offset; z < parent_z_end; ++z) {
+        for (int y = parent_block.y_offset; y < parent_y_end; ++y) {
+            for (int x = parent_block.x_offset; x < parent_x_end; ++x) {
+                if (!compressed[z][y][x]) {
+                    char tag = model[z][y][x];
+                    
+                    // Create seed block
+                    Block current(parent_block.x + x, parent_block.y + y, parent_block.z + z,
+                                1, 1, 1, tag, x, y, z);
+                    
+                    // Grow it maximally
+                    grow_block(current, best_block);
+                    
+                    // Keep if it's the best so far
+                    if (current.volume > best_volume) {
+                        best_volume = current.volume;
+                        best_block = current;
+                        
+                        // Early exit if we found a huge block (>25% of remaining space)
+                        if (best_volume > max_possible / 4) {
+                            return best_block;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (best_volume == 0) {
+        throw std::runtime_error("No uncompressed block found");
+    }
+    
+    return best_block;
+}
+
+// Grow a block maximally in X, then Y, then Z dimensions
+void BlockGrowth::grow_block(Block& current, Block& /*best_block*/) {
+    // Grow X dimension
+    while (current.x_offset + current.width < parent_x_end) {
+        int x_new = current.x_offset + current.width;
+        bool can_grow = true;
+        
+        for (int z = current.z_offset; z < current.z_offset + current.depth && can_grow; ++z) {
+            for (int y = current.y_offset; y < current.y_offset + current.height && can_grow; ++y) {
+                if (compressed[z][y][x_new] || model[z][y][x_new] != current.tag) {
+                    can_grow = false;
+                }
+            }
+        }
+        
+        if (!can_grow) break;
+        current.set_width(current.width + 1);
+    }
+    
+    // Grow Y dimension
+    while (current.y_offset + current.height < parent_y_end) {
+        int y_new = current.y_offset + current.height;
+        bool can_grow = true;
+        
+        for (int z = current.z_offset; z < current.z_offset + current.depth && can_grow; ++z) {
+            for (int x = current.x_offset; x < current.x_offset + current.width && can_grow; ++x) {
+                if (compressed[z][y_new][x] || model[z][y_new][x] != current.tag) {
+                    can_grow = false;
+                }
+            }
+        }
+        
+        if (!can_grow) break;
+        current.set_height(current.height + 1);
+    }
+    
+    // Grow Z dimension
+    while (current.z_offset + current.depth < parent_z_end) {
+        int z_new = current.z_offset + current.depth;
+        bool can_grow = true;
+        
+        for (int y = current.y_offset; y < current.y_offset + current.height && can_grow; ++y) {
+            for (int x = current.x_offset; x < current.x_offset + current.width && can_grow; ++x) {
+                if (compressed[z_new][y][x] || model[z_new][y][x] != current.tag) {
+                    can_grow = false;
+                }
+            }
+        }
+        
+        if (!can_grow) break;
+        current.set_depth(current.depth + 1);
     }
 }
 
@@ -42,86 +143,6 @@ bool BlockGrowth::all_compressed() const {
     return true;
 }
 
-char BlockGrowth::get_mode_of_uncompressed(const Block& blk) const {
-    // Equivalent to numpy unique+argmax over uncompressed cells in the block slice
-    int z0 = blk.z_offset, z1 = blk.z_offset + blk.depth;
-    int y0 = blk.y_offset, y1 = blk.y_offset + blk.height;
-    int x0 = blk.x_offset, x1 = blk.x_offset + blk.width;
-
-    // Frequency map over char tags
-    int freq[256] = {0}; // tags are char; assuming unsigned char range
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                if (!compressed[z][y][x]) {
-                    unsigned char uc = static_cast<unsigned char>(model[z][y][x]);
-                    ++freq[uc];
-                }
-
-    char best = 0;
-    int bestCount = -1;
-    for (int i = 0; i < 256; ++i) {
-        if (freq[i] > bestCount) {
-            bestCount = freq[i];
-            best = static_cast<char>(i);
-        }
-    }
-    return best;
-}
-
-Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
-    // Scan through the parent block region to find the first fitting window
-    for (int z = parent_block.z; z < parent_block.z_end; ++z) {
-        int z_off = z - parent_block.z;
-        int z_end = z_off + depth;
-        if (z_end > parent_z_end) break;
-
-        for (int y = parent_block.y; y < parent_block.y_end; ++y) {
-            int y_off = y - parent_block.y;
-            int y_end = y_off + height;
-            if (y_end > parent_y_end) break;
-
-            for (int x = parent_block.x; x < parent_block.x_end; ++x) {
-                int x_off = x - parent_block.x;
-                int x_end = x_off + width;
-                if (x_end > parent_x_end) break;
-
-                if (window_is_all(mode, z_off, z_end, y_off, y_end, x_off, x_end) &&
-                    window_is_all_uncompressed(z_off, z_end, y_off, y_end, x_off, x_end)) {
-
-                    Block b(x, y, z, width, height, depth, mode, x_off, y_off, z_off);
-                    grow_block(b, b);
-                    mark_compressed(z_off, z_off+b.depth, y_off, y_off+b.height, x_off, x_off+b.width, true);
-                    return b;
-                }
-            }
-        }
-    }
-
-    // Recursively shrink to try smaller cubes (replicates Python behavior)
-    if (width <= 1 || height <= 1 || depth <= 1) {
-        throw std::runtime_error("No fitting block found at minimal size.");
-    }
-    return fit_block(mode, width - 1, height - 1, depth - 1);
-}
-
-bool BlockGrowth::window_is_all(char val,
-                                int z0, int z1, int y0, int y1, int x0, int x1) const {
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                if (model[z][y][x] != val) return false;
-    return true;
-}
-
-bool BlockGrowth::window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const {
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                if (compressed[z][y][x]) return false;
-    return true;
-}
-
 void BlockGrowth::mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, bool v) {
     for (int z = z0; z < z1; ++z)
         for (int y = y0; y < y1; ++y)
@@ -129,68 +150,46 @@ void BlockGrowth::mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1
                 compressed[z][y][x] = v;
 }
 
-void BlockGrowth::grow_block(Block& current, Block& best_block) {
-    Block b = current;
-
-    int x = b.x_offset, y = b.y_offset, z = b.z_offset;
-    int x_end = x + b.width;
-    int y_end = y + b.height;
-    int z_end = z + b.depth;
-
-    // Try +X growth
-    if (x_end < parent_x_end) {
-        bool ok = true;
-        for (int zz = z; zz < z_end && ok; ++zz)
-            for (int yy = y; yy < y_end && ok; ++yy) {
-                if (model[zz][yy][x_end] != b.tag) ok = false;
-                if (compressed[zz][yy][x_end]) ok = false;
+// Helper: Get the most common uncompressed tag in a block region
+char BlockGrowth::get_mode_of_uncompressed(const Block& blk) const {
+    std::unordered_map<char, int> counts;
+    
+    for (int z = blk.z_offset; z < blk.z_offset + blk.depth; ++z) {
+        for (int y = blk.y_offset; y < blk.y_offset + blk.height; ++y) {
+            for (int x = blk.x_offset; x < blk.x_offset + blk.width; ++x) {
+                if (!compressed[z][y][x]) {
+                    counts[model[z][y][x]]++;
+                }
             }
-        if (ok) {
-            b.set_width(b.width + 1);
-            current = b;
-            grow_block(current, best_block);
-            if (current.volume > best_block.volume)
-                best_block = current;
-            b.set_width(b.width - 1);
         }
     }
-
-    // Try +Y growth
-    if (y_end < parent_y_end) {
-        bool ok = true;
-        for (int zz = z; zz < z_end && ok; ++zz)
-            for (int xx = x; xx < x_end && ok; ++xx) {
-                if (model[zz][y_end][xx] != b.tag) ok = false;
-                if (compressed[zz][y_end][xx]) ok = false;
-            }
-        if (ok) {
-            b.set_height(b.height + 1);
-            current = b;
-            grow_block(current, best_block);
-            if (current.volume > best_block.volume)
-                best_block = current;
-            b.set_height(b.height - 1);
+    
+    char mode = '\0';
+    int max_count = 0;
+    for (const auto& pair : counts) {
+        if (pair.second > max_count) {
+            max_count = pair.second;
+            mode = pair.first;
         }
     }
+    
+    return mode;
+}
 
-    // Try +Z growth
-    if (z_end < parent_z_end) {
-        bool ok = true;
-        for (int yy = y; yy < y_end && ok; ++yy)
-            for (int xx = x; xx < x_end && ok; ++xx) {
-                if (model[z_end][yy][xx] != b.tag) ok = false;
-                if (compressed[z_end][yy][xx]) ok = false;
-            }
-        if (ok) {
-            b.set_depth(b.depth + 1);
-            current = b;
-            grow_block(current, best_block);
-            if (current.volume > best_block.volume)
-                best_block = current;
-            b.set_depth(b.depth - 1);
-        }
-    }
+bool BlockGrowth::window_is_all(char val, int z0, int z1, int y0, int y1, int x0, int x1) const {
+    for (int z = z0; z < z1; ++z)
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+                if (model[z][y][x] != val)
+                    return false;
+    return true;
+}
 
-    if (b.volume > best_block.volume)
-        best_block = b;
+bool BlockGrowth::window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const {
+    for (int z = z0; z < z1; ++z)
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+                if (compressed[z][y][x])
+                    return false;
+    return true;
 }

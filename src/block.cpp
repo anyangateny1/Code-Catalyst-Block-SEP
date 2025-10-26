@@ -8,8 +8,9 @@ Block::Block(int x_, int y_, int z_,
     : x(x_), y(y_), z(z_),
       x_offset(x_off), y_offset(y_off), z_offset(z_off),
       width(w_), height(h_), depth(d_),
+      volume(w_ * h_ * d_),
       x_end(x_ + w_), y_end(y_ + h_), z_end(z_ + d_),
-      tag(tag_), volume(w_ * h_ * d_) {}
+      tag(tag_) {}
 
 void Block::set_width(int w) {
     width = w;
